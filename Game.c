@@ -1,6 +1,3 @@
-//
-// Created by Rubit on 23/07/2019.
-//
 
 #include "Game.h"
 #include "MainAux.h"
@@ -97,17 +94,27 @@ void unMarkBoard(Board *b, int m, int n){
             }
 
 }
+
+int isErroneous(Board *b, int m, int n){
+    int i=markBoard(b,  m,  n);
+    unMarkBoard(b, m,  n);
+    return i;
+
+}
 /*
  * sets the mark_errors field to x
  */
 void mark_errors(Board *b, int x){
     (*b).markErrors = x;
 }
+
 /*
  * sets the value in position row,col to the value that was given
  */
 void set(int x, int y, int z, Board *gameBoard) {
-    SP_BUFF_SET();
+    struct Action* newAction;
+    int arr[3];
+
     /*
      * if the game is solved- set is an invalid command and we will return an error
      */
@@ -120,6 +127,17 @@ void set(int x, int y, int z, Board *gameBoard) {
         ErrorPrinting(FIXEDCELL, "set");
         return;
     }
+    arr[0]=x;
+    arr[1]=y;
+    arr[2]= getValue(gameBoard, x, y);
+    SP_BUFF_SET();
+    newAction->command=SET;
+    newAction->arg=arr;
+    newAction->prev=gameBoard->actionP;
+    /*need to free memory from p.next to the end of the list */
+    ((gameBoard)->actionP)->next=newAction;
+    gameBoard->actionP=newAction;
+
     (*gameBoard).board[x][y].value = z;
 
 
@@ -141,48 +159,166 @@ void set(int x, int y, int z, Board *gameBoard) {
 
     return;
 }
-int save(Board *b, int m, int n, char *path){
-    int i,j,value;
-    FILE *fptr_out = fopen(path,w);
-    if((*b).mode==0 || fptr_out == NULL){
-        ErrorPrinting(INVALIDCOMMAND,"save");
-        return 0;
+
+
+
+/*Ellie*/
+
+
+void autofill(Board *gameBoard, int m, int n){
+    Board* copy;
+    int singleValue;
+    struct Action* newAction;
+    int row;
+    int col;
+    SP_BUFF_SET();
+
+    if ((*gameBoard).mode == 0 || (*gameBoard).mode == 1) {
+        ErrorPrinting(INVALIDCOMMAND, "autofill");
+        return;
     }
-    unMarkBoard(b,m,n);
-    if((*b).mode == 1 || ((*b).mode == 2 && (*b).markErrors ==1) ) {
-        markBoard(b,m,n);
+    if(isErroneous(gameBoard, m, n)){
+        /*maybe a different error*/
+        ErrorPrinting(INVALIDCOMMAND, "autofill");
+        return;
     }
-    if(fprintf(fptr_out,"%d",m) < 0 ||
-    fprintf(fptr_out,"%c",' ') <0||
-    fprintf(fptr_out,"%d",n)<0 ||
-    fprintf(fptr_out,"%c",'\n')<0){
-        ErrorPrinting(WRITEFILE,"save");
-        return 0;
-    }
-    for(i=0;i<m;i++){
-        for(j=0;j<n;j++){
-            value = (*b).board[i][j].value;
-            if(fprintf(fptr_out,"%d",value) < 0 ||
-            ((*b).board[i][j].fixed==1 && fprintf(fptr_out,"%c",'.') < 0) ||
-            ((*b).board[i][j].marked==1 && fprintf(fptr_out,"%c",'*') < 0) ||
-            (fprintf(fptr_out,"%c",' ') < 0)){
-                ErrorPrinting(WRITEFILE,"save");
-                return 0;
+
+    newAction->command=AUTOFILL;
+    newAction->prev=gameBoard->actionP;
+    /*need to free memory from p.next to the end of the list */
+    ((gameBoard)->actionP)->next=newAction;
+    gameBoard->actionP=newAction;
+
+    copyBoard(gameBoard,copy,  m,  n);
+    for ( row = 0; row < n*m; row++) {
+        for (col = 0; col < n*m; col++) {
+            singleValue=singleValidValue(copy, row, col,  m,  n);
+            if((*gameBoard).board[row][col].value==0 && singleValue!=-1){
+                set(row,col, singleValue, gameBoard);
+
             }
         }
-        if(fprintf(fptr_out,"%c",'\n') < 0){
-            ErrorPrinting(WRITEFILE,"save");
+    }
+
+}
+
+
+/*
+ * getters and setters
+ */
+int getValue(Board *b, int row, int col) {
+    return ((*b).board)[row][col].value;
+}
+void setValue(Board *b, int row, int col, int val) {
+    (*b).board[row][col].value = val;
+}
+
+int getNumOfOptions(Board *b, int row, int col) {
+    return (*b).board[row][col].numOfOptions;
+}
+void addOptions(Board *b, int row, int col, int val) {
+    int numOfop = (*b).board[row][col].numOfOptions;
+    (*b).board[row][col].options[numOfop] = val;
+}
+void setNumOfOptions(Board *b, int row, int col, int num) {
+    (*b).board[row][col].numOfOptions = num;
+}
+
+int getOptionInIndex(Board *b, int row, int col, int index) {
+    return (*b).board[row][col].options[index];
+}
+
+int isFixed(Board *b, int row, int col) {
+    return (*b).board[row][col].fixed;
+}
+void setFixed(Board* b,int row,int col, int i) {
+    (*b).board[row][col].fixed = i;
+}
+
+
+int isMarked(Board *b, int row, int col) {
+    return (*b).board[row][col].marked;
+}
+void setMarked(Board* b,int row,int col, int i) {
+    (*b).board[row][col].marked = i;
+
+}
+
+/*
+ * checks if the value in row,col is a valid value for our game board
+ */
+int valid(Board *b, int row, int col, int m, int n) {
+    Cell **board = (*b).board;
+    int i=0,j=0,startRow=0,startCol=0;
+
+    int value = board[row][col].value;
+    /*
+     * makes sure that the value doesn't exists in row
+     */
+    for (i = 0; i < m*n; i++) {
+        if (i != col && board[row][i].value == value) {
             return 0;
         }
     }
-    fclose(fptr_out);
-    if(feof(fptr_out)){
-        ErrorPrinting(WRITEFILE,"save");
-        return 0;
+
+    /*
+     * makes sure that the value doesn't exists in col
+     */
+    for (j = 0; j < m*n; j++) {
+        if (j != row && board[j][col].value == value) {
+            return 0;
+        }
     }
+
+    startRow = row - row % m;
+    startCol = col - col % n;
+    /*
+     * makes sure that the value doesn't exists in square
+     */
+    for ( i = startRow; i < startRow + m; i++) {
+        for ( j = startCol; j < startCol + n; j++) {
+            if (i != row && j != col && board[i][j].value == value) {
+                return 0;
+            }
+        }
+    }
+
     return 1;
+
 }
-int edit(Board *b, char *path){
+/*
+    * if there ia a single valid value , return the value. else return -1.
+    * the value of the cell is 0 before and after
+    */
+ int singleValidValue(Board *b, int row, int col, int m, int n){
+    int i;
+    int sum=0;
+    int value;
+    for (i=1;i<n*m+1; i++){
+        set(row, col,i, b);
+        if(valid(b, row,  col, m, n)){
+            if(sum==0){
+                sum+=1;
+                value=i;
+            }
+            else{
+                return -1;
+            }
+        }
+    }
+    set(row, col,0, b);
+    return value;
+
+
+}
+void copyBoard(Board *gameBoard, Board* copy, int m, int n) {
+    int i=0;
+    int j =0;
+    for ( i = 0; i < m*n; i++) {
+        for ( j = 0; j < m*n; j++) {
+            (*copy).board[i][j].value = (*gameBoard).board[i][j].value;
+        }
+    }
 
 }
 

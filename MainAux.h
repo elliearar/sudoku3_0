@@ -1,6 +1,4 @@
-//
-// Created by Rubit on 23/07/2019.
-//
+
 
 #ifndef SUDOKU2_0_MAINAUX_H
 #define SUDOKU2_0_MAINAUX_H
@@ -20,4 +18,4 @@ enum Errors {
 };
 void ErrorPrinting(enum Errors error, char funcName[]);
 void print_board(Board *b, int m, int n);
-#endif //SUDOKU2_0_MAINAUX_H
+
